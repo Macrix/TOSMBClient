@@ -212,7 +212,9 @@
         return;
     
     [self setupDownloadOperation];
-    [self.session.downloadsQueue addOperation:self.downloadOperation];
+    if (self.downloadOperation) {
+        [self.session.downloadsQueue addOperation:self.downloadOperation];
+    }
     self.state = TOSMBSessionDownloadTaskStateRunning;
 }
 
@@ -228,9 +230,9 @@
 
 - (void)cancel
 {
-    if (self.state != TOSMBSessionDownloadTaskStateRunning)
+    if (self.state != TOSMBSessionDownloadTaskStateRunning || !self.downloadOperation) {
         return;
-    
+    }
     id deleteBlock = ^{
         [[NSFileManager defaultManager] removeItemAtPath:self.tempFilePath error:nil];
     };

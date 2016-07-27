@@ -37,11 +37,12 @@
 
 @property (readonly) NSOperationQueue *downloadsQueue;
 
+@property (readonly) dispatch_queue_t serialQueue;
+
 - (NSError *)attemptConnectionWithSessionPointer:(smb_session *)session;
 - (NSString *)shareNameFromPath:(NSString *)path;
 - (NSString *)filePathExcludingSharePathFromPath:(NSString *)path;
 - (void)resumeDownloadTask:(TOSMBSessionDownloadTask *)task;
-
 
 @end
 
@@ -344,7 +345,7 @@
     if (weakOperation.isCancelled)
         return;
     
-    smb_tid treeID = -1;
+    smb_tid treeID = 0;
     smb_fd fileID = 0;
     
     //---------------------------------------------------------------------------------------
@@ -372,8 +373,11 @@
     
     self.downloadSession = smb_session_new();
     
-    //First, check to make sure the file is there, and to acquire its attributes
-    NSError *error = [self.session attemptConnectionWithSessionPointer:self.downloadSession];
+    //First, check to make sure the server is there, and to acquire its attributes
+    __block NSError *error = nil;
+    dispatch_sync(self.session.serialQueue, ^{
+        error = [self.session attemptConnectionWithSessionPointer:self.downloadSession];
+    });
     if (error) {
         [self didFailWithError:error];
         cleanup();
@@ -476,8 +480,16 @@
     char *buffer = malloc(bufferSize);
     
     do {
+        //Read the bytes from the network device
         bytesRead = smb_fread(self.downloadSession, fileID, buffer, bufferSize);
-        [fileHandle writeData:[NSData dataWithBytes:buffer length:bufferSize]];
+        
+        //Save them to the file handle (And ensure the NSData object is flushed immediately)
+        @autoreleasepool {
+            [fileHandle writeData:[NSData dataWithBytes:buffer length:bytesRead]];
+        }
+        
+        //Ensure the data is properly written to disk before proceeding
+        [fileHandle synchronizeFile];
         
         if (weakOperation.isCancelled)
             break;

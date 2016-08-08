@@ -76,6 +76,8 @@ totalBytesExpectedToReceive:(uint64_t)totalBytesToReceive;
 
 @interface TOSMBSessionDownloadTask : NSObject
 
+@property () NSInteger tag;
+
 /** The parent session that is managing this download task. (Retained by this class) */
 @property (readonly, weak) TOSMBSession *session;
 
